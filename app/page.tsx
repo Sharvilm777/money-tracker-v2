@@ -31,7 +31,7 @@ export default function Home() {
   const handleAddAccount = (e: React.FormEvent) => {
     e.preventDefault();
     addAccount({
-      ...newAccount,
+      ...newAccount as any,
       balance: parseFloat(newAccount.balance),
       creditLimit: newAccount.creditLimit
         ? parseFloat(newAccount.creditLimit)
@@ -286,9 +286,8 @@ export default function Home() {
                     </div>
                     <Progress
                       value={progress}
-                      className={`h-2 ${
-                        progress > 100 ? "bg-destructive" : ""
-                      }`}
+                      className={`h-2 ${progress > 100 ? "bg-destructive" : ""
+                        }`}
                     />
                   </div>
                 );

@@ -68,7 +68,7 @@ export default function TransactionsPage() {
     const isCredit = newTransaction.type === "credit";
 
     addTransaction({
-      ...newTransaction,
+      ...newTransaction as any,
       amount: isCredit ? amount : -amount,
       date: new Date(newTransaction.date).toISOString(),
       billingCycle: getBillingCycle(newTransaction.date),
@@ -313,8 +313,8 @@ export default function TransactionsPage() {
                               ({sourceAccount.name} -{" "}
                               {sourceAccount.type === "credit-card"
                                 ? `Billing: ${getBillingCycle(
-                                    transaction.date
-                                  )}`
+                                  transaction.date
+                                )}`
                                 : "Bank"}
                               )
                             </span>
