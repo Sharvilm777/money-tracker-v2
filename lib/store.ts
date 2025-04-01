@@ -1,66 +1,83 @@
 import { create } from "zustand";
 import { nanoid } from "nanoid";
-
-interface Account {
-  id: string;
-  name: string;
-  type: "bank" | "credit-card";
-  balance: number;
-  accountNumber?: string;
-  creditLimit?: number;
-}
-
-interface Transaction {
-  id: string;
-  amount: number; // Positive for credits, negative for debits
-  type: "credit" | "debit";
-  category: string;
-  subCategory?: string;
-  description: string;
-  date: string;
-  sourceAccount: string;
-  billingCycle: string;
-}
-
-interface Budget {
-  id: string;
-  category: string;
-  allocated: number;
-  spent: number;
-  period: string;
-}
-
-interface FinanceStore {
-  accounts: Account[];
-  transactions: Transaction[];
-  budgets: Budget[];
-  categories: string[];
-  addTransaction: (transaction: Omit<Transaction, "id">) => void;
-  addAccount: (account: Omit<Account, "id">) => void;
-  addBudget: (budget: Omit<Budget, "id" | "spent">) => void;
-  addCategory: (category: string) => void;
-  getCreditCardBill: (accountId: string, cycle: string) => number;
-}
+import api from "./api";
+import { FinanceStore, Account, Transaction, Budget } from "./types";
 
 export const useFinanceStore = create<FinanceStore>((set, get) => ({
   accounts: [],
   transactions: [],
   budgets: [],
-  categories: [
-    "Groceries",
-    "Utilities",
-    "Entertainment",
-    "Transport",
-    "Credit",
-  ],
+  categories: [],
+  isLoading: false,
+  error: null,
 
-  getCreditCardBill: (accountId, cycle) => {
-    return get()
-      .transactions.filter(
-        (t) => t.sourceAccount === accountId && t.billingCycle === cycle
-      )
-      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  // Initialize the store by fetching data from the API
+  initialize: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      // Check if user is authenticated
+      if (!api.auth.isAuthenticated()) {
+        set({ isLoading: false });
+        return;
+      }
+
+      // Fetch all data in parallel
+      const [accounts, transactions, budgets, categories] = await Promise.all([
+        api.accounts.getAll(),
+        api.transactions.getAll(),
+        api.budgets.getAll(),
+        api.categories.getAll(),
+      ]);
+
+      set({
+        accounts,
+        transactions,
+        budgets,
+        categories,
+        isLoading: false,
+      });
+    } catch (error: any) {
+      set({ 
+        isLoading: false, 
+        error: error.message || "Failed to initialize store" 
+      });
+      console.error("Store initialization error:", error);
+    }
   },
+
+  // Get credit card bill for a specific account and billing cycle
+  getCreditCardBill: async (accountId: string, cycle: string) => {
+    try {
+      const bill = await api.accounts.getCreditCardBill(accountId, cycle);
+      return bill.totalBill;
+    } catch (error) {
+      console.error("Error fetching credit card bill:", error);
+      return 0;
+    }
+  },
+   // Add a category to the database
+   addCategory: async (category: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await api.categories.create(category);
+      // Refresh categories
+      const categories = await api.categories.getAll();
+      set({
+        categories,
+        isLoading: false,
+      });
+      return categories;
+    } catch (error: any) {
+      set({ 
+        isLoading: false, 
+        error: error.message || "Failed to add category" 
+      });
+      console.error("Add category error:", error);
+      throw error;
+    }
+  },
+
+  // Get billing cycle for a specific date
   getBillingCycle: (dateString: string) => {
     const date = new Date(dateString);
     const month = date.getMonth() + (date.getDate() > 15 ? 1 : 0);
@@ -69,65 +86,203 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       month: "short",
     })} ${year}`;
   },
-  addTransaction: (transaction) =>
-    set((state) => {
-      const amount =
-        transaction.type === "credit"
-          ? transaction.amount
-          : -transaction.amount;
-      const isCreditCard =
-        state.accounts.find((a) => a.id === transaction.sourceAccount)?.type ===
-        "credit-card";
 
-      // Update account balance
-      const updatedAccounts = state.accounts.map((account) => {
-        if (account.id === transaction.sourceAccount) {
-          const newBalance = isCreditCard
-            ? account.balance + amount // Credit cards: credit reduces balance, debit increases
-            : account.balance +
-              (transaction.type === "credit" ? amount : -amount);
-          return { ...account, balance: newBalance };
-        }
-        return account;
+  // Add a transaction and update related data
+  addTransaction: async (transaction: Omit<Transaction, "id">) => {
+    set({ isLoading: true, error: null });
+    try {
+      // Calculate amount based on transaction type
+      const amount = transaction.type === "credit" 
+        ? Math.abs(transaction.amount) 
+        : -Math.abs(transaction.amount);
+
+      // Create the transaction in the database
+      const newTransaction = await api.transactions.create({
+        ...transaction,
+        amount,
       });
 
-      // Update budget for debits
-      const updatedBudgets =
-        transaction.type === "debit"
-          ? state.budgets.map((budget) => {
-              if (budget.category === transaction.category) {
-                return { ...budget, spent: budget.spent + Math.abs(amount) };
-              }
-              return budget;
-            })
-          : state.budgets;
+      // Fetch updated accounts and budgets
+      const [accounts, budgets] = await Promise.all([
+        api.accounts.getAll(),
+        api.budgets.getAll(),
+      ]);
 
-      return {
-        accounts: updatedAccounts,
-        budgets: updatedBudgets,
-        transactions: [
-          ...state.transactions,
-          {
-            ...transaction,
-            id: nanoid(),
-            amount,
-          },
-        ],
-      };
-    }),
+      // Update state with the new data
+      set((state) => ({
+        transactions: [...state.transactions, newTransaction],
+        accounts,
+        budgets,
+        isLoading: false,
+      }));
+    } catch (error: any) {
+      set({ 
+        isLoading: false, 
+        error: error.message || "Failed to add transaction" 
+      });
+      console.error("Add transaction error:", error);
+    }
+  },
 
-  addAccount: (account) =>
-    set((state) => ({
-      accounts: [...state.accounts, { ...account, id: nanoid() }],
-    })),
+  // Add an account to the database
+  addAccount: async (account: Omit<Account, "id">) => {
+    set({ isLoading: true, error: null });
+    try {
+      const newAccount = await api.accounts.create(account);
+      set((state) => ({
+        accounts: [...state.accounts, newAccount],
+        isLoading: false,
+      }));
+    } catch (error: any) {
+      set({ 
+        isLoading: false, 
+        error: error.message || "Failed to add account" 
+      });
+      console.error("Add account error:", error);
+    }
+  },
 
-  addBudget: (budget) =>
-    set((state) => ({
-      budgets: [...state.budgets, { ...budget, id: nanoid(), spent: 0 }],
-    })),
+  // Add a budget to the database
+  addBudget: async (budget: Omit<Budget, "id" | "spent">) => {
+    set({ isLoading: true, error: null });
+    try {
+      const newBudget = await api.budgets.create(budget);
+      set((state) => ({
+        budgets: [...state.budgets, newBudget],
+        isLoading: false,
+      }));
+    } catch (error: any) {
+      set({ 
+        isLoading: false, 
+        error: error.message || "Failed to add budget" 
+      });
+      console.error("Add budget error:", error);
+    }
+  },
 
-  addCategory: (category) =>
-    set((state) => ({
-      categories: [...state.categories, category],
-    })),
+  // Add a category to the database
+  addCategory: async (category: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await api.categories.create(category);
+      // Refresh categories
+      const categories = await api.categories.getAll();
+      set((state) => ({
+        categories,
+        isLoading: false,
+      }));
+    } catch (error: any) {
+      set({ 
+        isLoading: false, 
+        error: error.message || "Failed to add category" 
+      });
+      console.error("Add category error:", error);
+    }
+  },
+
+  // Update an account in the database
+  updateAccount: async (id: string, accountData: Partial<Account>) => {
+    set({ isLoading: true, error: null });
+    try {
+      await api.accounts.update(id, accountData);
+      const accounts = await api.accounts.getAll();
+      set({ accounts, isLoading: false });
+    } catch (error: any) {
+      set({ 
+        isLoading: false, 
+        error: error.message || "Failed to update account" 
+      });
+      console.error("Update account error:", error);
+    }
+  },
+
+  // Update a transaction in the database
+  updateTransaction: async (id: string, transactionData: Partial<Transaction>) => {
+    set({ isLoading: true, error: null });
+    try {
+      await api.transactions.update(id, transactionData);
+      // Fetch all updated data
+      const [transactions, accounts, budgets] = await Promise.all([
+        api.transactions.getAll(),
+        api.accounts.getAll(),
+        api.budgets.getAll(),
+      ]);
+      set({ transactions, accounts, budgets, isLoading: false });
+    } catch (error: any) {
+      set({ 
+        isLoading: false, 
+        error: error.message || "Failed to update transaction" 
+      });
+      console.error("Update transaction error:", error);
+    }
+  },
+
+  // Delete an account from the database
+  deleteAccount: async (id: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await api.accounts.delete(id);
+      const accounts = await api.accounts.getAll();
+      set({ accounts, isLoading: false });
+    } catch (error: any) {
+      set({ 
+        isLoading: false, 
+        error: error.message || "Failed to delete account" 
+      });
+      console.error("Delete account error:", error);
+    }
+  },
+
+  // Delete a transaction from the database
+  deleteTransaction: async (id: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await api.transactions.delete(id);
+      // Fetch all updated data
+      const [transactions, accounts, budgets] = await Promise.all([
+        api.transactions.getAll(),
+        api.accounts.getAll(),
+        api.budgets.getAll(),
+      ]);
+      set({ transactions, accounts, budgets, isLoading: false });
+    } catch (error: any) {
+      set({ 
+        isLoading: false, 
+        error: error.message || "Failed to delete transaction" 
+      });
+      console.error("Delete transaction error:", error);
+    }
+  },
+
+  // Delete a budget from the database
+  deleteBudget: async (id: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await api.budgets.delete(id);
+      const budgets = await api.budgets.getAll();
+      set({ budgets, isLoading: false });
+    } catch (error: any) {
+      set({ 
+        isLoading: false, 
+        error: error.message || "Failed to delete budget" 
+      });
+      console.error("Delete budget error:", error);
+    }
+  },
+
+  // Delete a category from the database
+  deleteCategory: async (id: string) => {
+    set({ isLoading: true, error: null });
+    try {
+      await api.categories.delete(id);
+      const categories = await api.categories.getAll();
+      set({ categories, isLoading: false });
+    } catch (error: any) {
+      set({ 
+        isLoading: false, 
+        error: error.message || "Failed to delete category" 
+      });
+      console.error("Delete category error:", error);
+    }
+  },
 }));
