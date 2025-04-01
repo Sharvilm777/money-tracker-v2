@@ -55,27 +55,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
       return 0;
     }
   },
-   // Add a category to the database
-   addCategory: async (category: string) => {
-    set({ isLoading: true, error: null });
-    try {
-      await api.categories.create(category);
-      // Refresh categories
-      const categories = await api.categories.getAll();
-      set({
-        categories,
-        isLoading: false,
-      });
-      return categories;
-    } catch (error: any) {
-      set({ 
-        isLoading: false, 
-        error: error.message || "Failed to add category" 
-      });
-      console.error("Add category error:", error);
-      throw error;
-    }
-  },
+  
 
   // Get billing cycle for a specific date
   getBillingCycle: (dateString: string) => {

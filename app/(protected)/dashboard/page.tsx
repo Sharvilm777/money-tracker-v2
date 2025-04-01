@@ -637,13 +637,17 @@ export default function DashboardPage() {
                     return [`${value} (${card?.utilization.toFixed(1)}%)`, null];
                   }}
                 />
-                <Tooltip
-                  formatter={(value) => [`${value.toFixed(1)}%`, "Utilization"]}
+                  <Tooltip
+                  formatter={(value: any) => {
+                    // Ensure value is treated as a number
+                    const numValue = typeof value === 'number' ? value : parseFloat(String(value));
+                    return isNaN(numValue) ? [`${value}%`, "Utilization"] : [`${numValue.toFixed(1)}%`, "Utilization"];
+                  }}
                   labelFormatter={(name) => {
                     const card = creditCardUtilization.find((c) => c.name === name);
                     return `₹${card?.balance.toLocaleString()} of ₹${card?.limit.toLocaleString()}`;
                   }}
-                />
+                  />
               </RadialBarChart>
             </ResponsiveContainer>
           </div>

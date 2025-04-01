@@ -5,19 +5,20 @@ import { withAuth } from '../../../../middleware/authMiddleware';
 
 // Get a user by ID
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(request, async (req, authUser) => {
     try {
       await connectDB();
+      const id = await params.then(p => p.id);
       
       // Check if the user is trying to access their own profile
-      if (authUser._id.toString() !== params.id) {
+      if (authUser._id.toString() !== id) {
         return NextResponse.json({ error: 'Not authorized to access this resource' }, { status: 403 });
       }
       
-      const user = await User.findById(params.id).select('-password');
+      const user = await User.findById(id).select('-password');
       if (!user) {
         return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
@@ -32,15 +33,16 @@ export async function GET(
 
 // Update a user
 export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(request, async (req, authUser) => {
     try {
       await connectDB();
+      const id = await params.then(p => p.id);
       
       // Check if the user is trying to update their own profile
-      if (authUser._id.toString() !== params.id) {
+      if (authUser._id.toString() !== id) {
         return NextResponse.json({ error: 'Not authorized to update this resource' }, { status: 403 });
       }
       
@@ -48,7 +50,7 @@ export async function PUT(
       
       // Update user
       const updatedUser = await User.findByIdAndUpdate(
-        params.id,
+        id,
         { name, email },
         { new: true, runValidators: true }
       ).select('-password');
@@ -67,19 +69,21 @@ export async function PUT(
 
 // Delete a user
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(request, async (req, authUser) => {
     try {
       await connectDB();
+      const id = await params.then(p => p.id);
+      
       
       // Check if the user is trying to delete their own profile
-      if (authUser._id.toString() !== params.id) {
+      if (authUser._id.toString() !== id) {
         return NextResponse.json({ error: 'Not authorized to delete this resource' }, { status: 403 });
       }
       
-      const user = await User.findByIdAndDelete(params.id);
+      const user = await User.findByIdAndDelete(id);
       
       if (!user) {
         return NextResponse.json({ error: 'User not found' }, { status: 404 });

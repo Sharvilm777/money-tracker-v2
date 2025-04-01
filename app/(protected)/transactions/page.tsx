@@ -33,6 +33,7 @@ export default function TransactionsPage() {
     categories, 
     transactions, 
     addTransaction,
+    addCategory,
     deleteTransaction,
     initialize,
     isLoading,
@@ -50,7 +51,15 @@ export default function TransactionsPage() {
     searchText: "",
   });
 
-  const [newTransaction, setNewTransaction] = useState({
+  const [newTransaction, setNewTransaction] = useState<{
+    amount: string;
+    type: "credit" | "debit";
+    category: string;
+    subCategory: string;
+    description: string;
+    date: string;
+    sourceAccount: string;
+  }>({
     amount: "",
     type: "debit",
     category: "",
@@ -230,10 +239,10 @@ export default function TransactionsPage() {
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <Select
+                  <Select
                       value={newTransaction.type}
-                      onValueChange={(value) =>
-                        setNewTransaction({ ...newTransaction, type: value })
+                      onValueChange={(value: string) =>
+                        setNewTransaction({ ...newTransaction, type: value as "credit" | "debit" })
                       }
                     >
                       <SelectTrigger>
