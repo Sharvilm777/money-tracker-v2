@@ -5,7 +5,7 @@ import connectDB from '../lib/mongodb';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'sharvilm_jwt_authkey';
 
-export async function validateToken(request: NextRequest) {
+export async function validateToken(request: Request) {
   try {
     // Connect to database
     await connectDB();
@@ -50,12 +50,12 @@ export async function validateToken(request: NextRequest) {
   }
 }
 
-export async function withAuth(request: NextRequest, handler: (req: NextRequest, user: any) => Promise<NextResponse>) {
-  const auth = await validateToken(request);
-  
-  if (auth.error) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+export async function withAuth(request: Request, handler: (req: Request, user: any) => Promise<NextResponse>) {
+    const auth = await validateToken(request);
+    
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+    
+    return handler(request, auth.user);
   }
-  
-  return handler(request, auth.user);
-}

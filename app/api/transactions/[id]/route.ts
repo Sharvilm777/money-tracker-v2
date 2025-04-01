@@ -1,23 +1,26 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import connectDB from '../../../../lib/mongodb';
 import Transaction from '../../../../models/Transactions';
 import Account from '../../../../models/Account';
 import Budget from '../../../../models/Budget';
 import { withAuth } from '../../../../middleware/authMiddleware';
 
+
 // Get a transaction by ID
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  return withAuth(request, async (req, user) => {
-    try {
-      await connectDB();
-      
-      const transaction = await Transaction.findOne({
-        _id: params.id,
-        user: user._id,
-      }).populate('sourceAccount', 'name type');
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+  ) {
+    return withAuth(request, async (req, user) => {
+      try {
+        await connectDB();
+        
+        const id = await params.then(p => p.id);
+        
+        const transaction = await Transaction.findOne({
+          _id: id,
+          user: user._id,
+        }).populate('sourceAccount', 'name type');
       
       if (!transaction) {
         return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
@@ -33,18 +36,20 @@ export async function GET(
 
 // Update a transaction
 export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  return withAuth(request, async (req, user) => {
-    try {
-      await connectDB();
-      
-      // First, get the existing transaction
-      const existingTransaction = await Transaction.findOne({
-        _id: params.id,
-        user: user._id,
-      });
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+  ) {
+    return withAuth(request, async (req, user) => {
+      try {
+        await connectDB();
+        
+        const id = await params.then(p => p.id);
+        
+        // First, get the existing transaction
+        const existingTransaction = await Transaction.findOne({
+          _id: id,
+          user: user._id,
+        });
       
       if (!existingTransaction) {
         return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
@@ -113,7 +118,7 @@ export async function PUT(
       
       // Update the transaction
       const updatedTransaction = await Transaction.findByIdAndUpdate(
-        params.id,
+        id,
         {
           amount: newAmount,
           type,
@@ -158,18 +163,20 @@ export async function PUT(
 
 // Delete a transaction
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  return withAuth(request, async (req, user) => {
-    try {
-      await connectDB();
-      
-      // First, get the existing transaction
-      const transaction = await Transaction.findOne({
-        _id: params.id,
-        user: user._id,
-      });
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+  ) {
+    return withAuth(request, async (req, user) => {
+      try {
+        await connectDB();
+        
+        const id = await params.then(p => p.id);
+        
+        // First, get the existing transaction
+        const transaction = await Transaction.findOne({
+          _id: id,
+          user: user._id,
+        });
       
       if (!transaction) {
         return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
@@ -197,7 +204,7 @@ export async function DELETE(
       }
       
       // Delete the transaction
-      await Transaction.findByIdAndDelete(params.id);
+      await Transaction.findByIdAndDelete(id);
       
       return NextResponse.json({ message: 'Transaction deleted successfully' }, { status: 200 });
     } catch (error: any) {

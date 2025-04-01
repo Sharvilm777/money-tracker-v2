@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import {  NextResponse } from 'next/server';
 import connectDB from '../../../../../../lib/mongodb';
 import Account from '../../../../../../models/Account';
 import Transaction from '../../../../../../models/Transactions';
@@ -6,10 +6,13 @@ import { validateToken } from '../../../../../../middleware/authMiddleware';
 
 // Get credit card bill for a specific cycle
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string; cycle: string } }
+  request: Request,
+  { params }: { params: Promise<{ id: string; cycle: string }> }
 ) {
   try {
+    // Get params
+    const { id, cycle } = await params;
+    
     // Connect to database
     await connectDB();
     
@@ -23,7 +26,7 @@ export async function GET(
     
     // Check if account exists and belongs to user
     const account = await Account.findOne({
-      _id: params.id,
+      _id: id,
       user: user._id,
     });
     
@@ -38,8 +41,8 @@ export async function GET(
     
     // Get transactions for this billing cycle
     const transactions = await Transaction.find({
-      sourceAccount: params.id,
-      billingCycle: params.cycle,
+      sourceAccount: id,
+      billingCycle: cycle,
       user: user._id,
     }).sort({ date: -1 });
     
@@ -52,7 +55,7 @@ export async function GET(
         name: account.name,
         balance: account.balance,
       },
-      cycle: params.cycle,
+      cycle,
       transactions,
       totalBill,
     }, { status: 200 });

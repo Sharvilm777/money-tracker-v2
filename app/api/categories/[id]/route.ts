@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import connectDB from '../../../../lib/mongodb';
 import Category from '../../../../models/Category';
 import Transaction from '../../../../models/Transactions';
@@ -7,15 +7,16 @@ import { withAuth } from '../../../../middleware/authMiddleware';
 
 // Get a category by ID
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(request, async (req, user) => {
     try {
       await connectDB();
+      const id = await params.then(p => p.id);
       
       const category = await Category.findOne({
-        _id: params.id,
+        _id: id,
         user: user._id,
       });
       
@@ -33,12 +34,14 @@ export async function GET(
 
 // Update a category
 export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(request, async (req, user) => {
     try {
       await connectDB();
+      const id = await params.then(p => p.id);
+      
       
       const { name } = await request.json();
       
@@ -46,7 +49,7 @@ export async function PUT(
       const existingCategory = await Category.findOne({
         name,
         user: user._id,
-        _id: { $ne: params.id },
+        _id: { $ne: id },
       });
       
       if (existingCategory) {
@@ -58,7 +61,7 @@ export async function PUT(
       
       // Find and update category
       const category = await Category.findOneAndUpdate(
-        { _id: params.id, user: user._id },
+        { _id: id, user: user._id },
         { name },
         { new: true, runValidators: true }
       );
@@ -77,16 +80,18 @@ export async function PUT(
 
 // Delete a category
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(request, async (req, user) => {
     try {
       await connectDB();
+      const id = await params.then(p => p.id);
+      
       
       // Check if category is being used in transactions or budgets
       const category = await Category.findOne({
-        _id: params.id,
+        _id: id,
         user: user._id,
       });
       
@@ -116,7 +121,7 @@ export async function DELETE(
       }
       
       // Delete the category
-      await Category.findByIdAndDelete(params.id);
+      await Category.findByIdAndDelete(id);
       
       return NextResponse.json({ message: 'Category deleted successfully' }, { status: 200 });
     } catch (error: any) {

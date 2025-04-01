@@ -1,19 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import connectDB from '../../../../lib/mongodb';
 import Account from '../../../../models/Account';
 import { withAuth } from '../../../../middleware/authMiddleware';
 
 // Get an account by ID
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(request, async (req, user) => {
     try {
       await connectDB();
+      const id = await params.then(p => p.id);
       
       const account = await Account.findOne({
-        _id: params.id,
+        _id: id,
         user: user._id,
       });
       
@@ -31,18 +32,19 @@ export async function GET(
 
 // Update an account
 export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(request, async (req, user) => {
     try {
       await connectDB();
+      const id = await params.then(p => p.id);
       
       const { name, balance, accountNumber, creditLimit } = await request.json();
       
       // Find and update account
       const account = await Account.findOneAndUpdate(
-        { _id: params.id, user: user._id },
+        { _id: id, user: user._id },
         { name, balance, accountNumber, creditLimit },
         { new: true, runValidators: true }
       );
@@ -61,16 +63,17 @@ export async function PUT(
 
 // Delete an account
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   return withAuth(request, async (req, user) => {
     try {
       await connectDB();
+      const id = await params.then(p => p.id);
       
       // Find and delete account
       const account = await Account.findOneAndDelete({
-        _id: params.id,
+        _id: id,
         user: user._id,
       });
       
