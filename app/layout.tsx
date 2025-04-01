@@ -1,6 +1,6 @@
 "use client";
 import "@/app/globals.css";
-import { Navbar } from "@/components/navbar";
+
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function RootLayout({
@@ -18,7 +18,6 @@ export default function RootLayout({
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
           >
-            <Navbar />
             {children}
           </motion.div>
         </AnimatePresence>
